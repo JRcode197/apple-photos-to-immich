@@ -44,6 +44,8 @@ def build_album_map(library: str, album_prefix: str, system_album_prefix: str) -
             "originalFilename": str(original_filename),
             "date": str(getattr(photo, "date", "")),
             "favorite": bool(getattr(photo, "favorite", False)),
+            "latitude": getattr(photo, "latitude", None),
+            "longitude": getattr(photo, "longitude", None),
         }
 
         for album in get_album_names(photo):

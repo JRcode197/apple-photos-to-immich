@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -23,10 +25,13 @@ if TYPE_CHECKING:
     from .immich import ImmichClient
 
 
-def check(config: Config, logger: logging.Logger) -> int:
+def check(config: Config, logger: logging.Logger, *, require_immich: bool = True) -> int:
     logger.info("Checking local dependencies and directories.")
     missing = []
-    for binary in [config.osxphotos_binary, config.immich_go_binary]:
+    binaries = [config.osxphotos_binary]
+    if require_immich:
+        binaries.append(config.immich_go_binary)
+    for binary in binaries:
         if shutil.which(binary) is None:
             missing.append(binary)
     if missing:
@@ -91,6 +96,8 @@ def export_assets(
         logger.info("DRY RUN export command: %s", " ".join(cmd))
         return 0
 
+    config.export_dir.mkdir(parents=True, exist_ok=True)
+    config.meta_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Running osxphotos export%s.", " in test mode" if test_mode else "")
     return subprocess.run(cmd, check=False).returncode
 
@@ -102,13 +109,13 @@ def import_assets(config: Config, logger: logging.Logger, *, dry_run: bool = Fal
         "from-folder",
         "--server",
         config.immich_server,
-        "--api-key",
-        config.immich_api_key,
         f"--manage-heic-jpeg={config.import_manage_heic_jpeg}",
         f"--manage-raw-jpeg={config.import_manage_raw_jpeg}",
         "--session-tag",
-        config.import_session_tag,
+        "--no-ui",
     ]
+    if config.import_session_tag:
+        cmd.extend(["--tag", config.import_session_tag])
     if config.skip_verify_ssl:
         cmd.append("--skip-verify-ssl")
     cmd.append(str(config.export_dir))
@@ -117,8 +124,11 @@ def import_assets(config: Config, logger: logging.Logger, *, dry_run: bool = Fal
         logger.info("DRY RUN import command: %s", " ".join(cmd))
         return 0
 
-    logger.info("Importing assets into Immich via immich-go.")
-    return_code = subprocess.run(cmd, check=False).returncode
+    logger.info("Importing assets into Immich via immich-go (secret sent in subprocess environment).")
+    env = os.environ.copy()
+    env["IMMICH_GO_UPLOAD_API_KEY"] = config.immich_api_key
+    env["IMMICH_GO_UPLOAD_SERVER"] = config.immich_server
+    return_code = subprocess.run(cmd, check=False, env=env).returncode
     if return_code == 0:
         logger.warning(
             "immich-go finished, but Immich server-side jobs may still be running. "
@@ -225,6 +235,8 @@ def make_album_map(config: Config, logger: logging.Logger) -> int:
             "originalFilename": str(original_filename),
             "date": str(getattr(photo, "date", "")),
             "favorite": bool(getattr(photo, "favorite", False)),
+            "latitude": getattr(photo, "latitude", None),
+            "longitude": getattr(photo, "longitude", None),
         }
 
         for album in get_album_names(photo):
@@ -278,7 +290,7 @@ def build_match_report(config: Config, client: ImmichClient, logger: logging.Log
 
     logger.info("Indexing Immich assets.")
     immich_assets = client.iter_all_assets()
-    result = match_assets(apple_assets, immich_assets)
+    result = match_assets(apple_assets, immich_assets, allow_filename_date_fallback=False)
     report = {
         "appleAssetCount": len(apple_assets),
         "immichAssetCount": len(immich_assets),
@@ -405,9 +417,7 @@ def apply_albums(config: Config, logger: logging.Logger, *, dry_run: bool = Fals
                 client.add_assets_to_album(album_id, chunk)
                 time.sleep(sleep_seconds)
         if legacy_album_id is not None:
-            client.delete_album(legacy_album_id)
-            if legacy_album_title is not None:
-                existing_albums.pop(legacy_album_title, None)
+            logger.warning("Legacy album %s preserved for manual review", legacy_album_title)
 
         logger.info(
             "Album %s synced: total=%s added=%s already_present=%s missing=%s",
@@ -516,6 +526,7 @@ def verify(config: Config, logger: logging.Logger) -> int:
         or verify_report["duplicateUuidCount"] > 0
         or verify_report["albumsMissingInImmich"] > 0
         or verify_report["albumsWithMissingAssets"] > 0
+        or verify_report["albumsWithExtraAssets"] > 0
     )
     return 2 if has_drift else 0
 
@@ -546,41 +557,64 @@ def run_all(
     resume: bool = True,
     reset_state: bool = False,
 ) -> int:
-    steps = [
-        ("check", lambda: check(config, logger)),
-        ("export", lambda: export_assets(config, logger, test_mode=test_mode, dry_run=dry_run, update=True)),
-        ("import-assets", lambda: import_assets(config, logger, dry_run=dry_run)),
-        ("make-map", lambda: make_album_map(config, logger)),
-        ("apply-albums", lambda: apply_albums(config, logger, dry_run=dry_run)),
-        ("verify", lambda: verify(config, logger)),
-    ]
+    """Run migration steps. Sample mode MUST NEVER upload or modify Immich."""
+    if test_mode:
+        steps = [
+            ("check", lambda: check(config, logger, require_immich=False)),
+            ("export", lambda: export_assets(config, logger, test_mode=True, dry_run=dry_run, update=True)),
+        ]
+    elif dry_run:
+        steps = [
+            ("check", lambda: check(config, logger, require_immich=False)),
+            ("export", lambda: export_assets(config, logger, dry_run=True, update=True)),
+            ("import-assets", lambda: import_assets(config, logger, dry_run=True)),
+        ]
+    else:
+        steps = [
+            ("check", lambda: check(config, logger)),
+            ("export", lambda: export_assets(config, logger, update=True)),
+            ("import-assets", lambda: import_assets(config, logger)),
+            ("wait-for-immich", lambda: wait_for_immich(config, logger)),
+            ("make-map", lambda: make_album_map(config, logger)),
+            ("apply-albums", lambda: apply_albums(config, logger)),
+            ("verify", lambda: verify(config, logger)),
+        ]
+
+    signature = hashlib.sha256(json.dumps({
+        "library": config.photos_library,
+        "export": str(config.export_dir.resolve()),
+        "meta": str(config.meta_dir.resolve()),
+        "server": config.immich_server,
+        "apiKeyDigest": hashlib.sha256(config.immich_api_key.encode()).hexdigest(),
+        "albumPrefix": config.album_prefix,
+        "systemAlbumPrefix": config.system_album_prefix,
+        "heic": config.import_manage_heic_jpeg,
+        "raw": config.import_manage_raw_jpeg,
+    }, sort_keys=True).encode()).hexdigest()
 
     state = RunState()
-    persist_state = not dry_run
+    persist_state = not dry_run and not test_mode
     if persist_state:
         if reset_state and config.state_path.exists():
             config.state_path.unlink()
         if resume:
             state = load_state(config.state_path)
+            if state.completed_steps and state.profile_fingerprint != signature:
+                logger.error("Resume state belongs to a different config or older version. Inspect state and use --reset-state deliberately.")
+                return 1
+        state.profile_fingerprint = signature
 
     for name, fn in steps:
         if persist_state and resume and state.is_completed(name):
-            logger.info("Skipping completed step from state file: %s", name)
+            logger.info("Skipping completed step: %s", name)
             continue
         logger.info("Running step: %s", name)
         exit_code = fn()
-        if exit_code != 0 and not (name == "verify" and exit_code == 2):
-            logger.error("Step failed: %s", name)
+        if exit_code != 0:
+            logger.error("Step %s failed or found discrepancies (code %s)", name, exit_code)
             return exit_code
         if persist_state:
-            state.mark_completed(
-                name,
-                {
-                    "dryRun": dry_run,
-                    "testMode": test_mode,
-                    "exitCode": exit_code,
-                },
-            )
+            state.mark_completed(name, {"dryRun": False, "testMode": False, "exitCode": exit_code})
             save_state(config.state_path, state)
     return 0
 

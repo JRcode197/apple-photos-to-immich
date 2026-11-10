@@ -1,3 +1,26 @@
+> **JRcode197 Monterey edition (experimental)** — This fork adds a Tkinter GUI, safer resume/verification, export audit, and metadata checks. **Local sample export only requires Python and OSXPhotos (no Immich server or immich-go).** See [Italian setup guide](docs/MONTEREY.md). **Do not delete your Apple Photos library after importing.** The project is not yet validated on macOS Monterey or a 600 GB production library.
+
+## Quick start: desktop GUI on macOS Monterey (Intel)
+
+1. Install Python 3.11 or 3.12 from [python.org](https://www.python.org/downloads/macos/). Run `python3.11 -m tkinter` to confirm the UI works.
+2. Download this fork on the Mac, then install the Python package in an isolated environment:
+   ```bash
+   git clone https://github.com/JRcode197/apple-photos-to-immich.git
+   cd apple-photos-to-immich
+   python3.11 -m venv .venv
+   source .venv/bin/activate
+   python -m pip install -e .
+   python -m pip install osxphotos
+   python -m unittest discover -s tests -v
+   ```
+3. Install the official [immich-go macOS Intel binary](https://github.com/simulot/immich-go/releases), ensure it runs with `immich-go --help`.
+4. Start with `python -m apple_photos_to_immich.gui` (or `apple-photos-to-immich-gui` while the venv is active).
+5. Follow the **sample-only** sequence in [docs/MONTEREY.md](docs/MONTEREY.md) before attempting the full import.
+
+**Important:** The upstream README below is maintained as a reference; its Homebrew installation advice may not be appropriate for older Intel macOS versions. Follow the Monterey guide above instead. Never commit `config.toml`, API keys, exported images, or your library to GitHub.
+
+---
+
 # Apple Photos -> Immich Migration Tool
 
 Python CLI for a robust migration from Apple Photos to Immich.

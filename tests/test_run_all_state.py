@@ -44,6 +44,7 @@ class RunAllStateTests(unittest.TestCase):
                 "check": commands.check,
                 "export_assets": commands.export_assets,
                 "import_assets": commands.import_assets,
+                "wait_for_immich": commands.wait_for_immich,
                 "make_album_map": commands.make_album_map,
                 "apply_albums": commands.apply_albums,
                 "verify": commands.verify,
@@ -51,6 +52,7 @@ class RunAllStateTests(unittest.TestCase):
             commands.check = make_step("check")
             commands.export_assets = make_step("export")
             commands.import_assets = make_step("import-assets")
+            commands.wait_for_immich = make_step("wait-for-immich")
             commands.make_album_map = make_step("make-map")
             commands.apply_albums = make_step("apply-albums")
             commands.verify = make_step("verify")
@@ -59,7 +61,7 @@ class RunAllStateTests(unittest.TestCase):
                 self.assertEqual(exit_code, 0)
                 self.assertEqual(
                     called,
-                    ["check", "export", "import-assets", "make-map", "apply-albums", "verify"],
+                    ["check", "export", "import-assets", "wait-for-immich", "make-map", "apply-albums", "verify"],
                 )
 
                 called.clear()

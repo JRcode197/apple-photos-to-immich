@@ -15,6 +15,8 @@ from .commands import (
 )
 from .config import find_config_file, load_config
 from .logging_utils import setup_logging
+from .audit import audit_export
+from .metadata_check import verify_metadata
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +52,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("verify")
 
+    audit_parser = subparsers.add_parser("audit-export")
+    audit_parser.add_argument("--sha256", action="store_true")
+    metadata_parser = subparsers.add_parser("verify-metadata")
+    mode = metadata_parser.add_mutually_exclusive_group()
+    mode.add_argument("--limit", type=int, default=300)
+    mode.add_argument("--all", action="store_true")
+
     all_parser = subparsers.add_parser("all")
     all_parser.add_argument("--dry-run", action="store_true")
     all_parser.add_argument("--test", action="store_true")
@@ -69,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "check":
-            return check(config, logger)
+            return check(config, logger, require_immich=bool(config.immich_api_key))
         if args.command == "export":
             return export_assets(
                 config,
@@ -105,6 +114,10 @@ def main(argv: list[str] | None = None) -> int:
             return apply_albums(config, logger, dry_run=args.dry_run, sleep_seconds=args.sleep)
         if args.command == "verify":
             return verify(config, logger)
+        if args.command == "audit-export":
+            return audit_export(config, logger, sha256=args.sha256)
+        if args.command == "verify-metadata":
+            return verify_metadata(config, logger, limit=args.limit, all_assets=args.all)
         if args.command == "all":
             return run_all(
                 config,
