@@ -25,10 +25,13 @@ if TYPE_CHECKING:
     from .immich import ImmichClient
 
 
-def check(config: Config, logger: logging.Logger) -> int:
+def check(config: Config, logger: logging.Logger, *, require_immich: bool = True) -> int:
     logger.info("Checking local dependencies and directories.")
     missing = []
-    for binary in [config.osxphotos_binary, config.immich_go_binary]:
+    binaries = [config.osxphotos_binary]
+    if require_immich:
+        binaries.append(config.immich_go_binary)
+    for binary in binaries:
         if shutil.which(binary) is None:
             missing.append(binary)
     if missing:
@@ -93,6 +96,8 @@ def export_assets(
         logger.info("DRY RUN export command: %s", " ".join(cmd))
         return 0
 
+    config.export_dir.mkdir(parents=True, exist_ok=True)
+    config.meta_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Running osxphotos export%s.", " in test mode" if test_mode else "")
     return subprocess.run(cmd, check=False).returncode
 
@@ -555,12 +560,12 @@ def run_all(
     """Run migration steps. Sample mode MUST NEVER upload or modify Immich."""
     if test_mode:
         steps = [
-            ("check", lambda: check(config, logger)),
+            ("check", lambda: check(config, logger, require_immich=False)),
             ("export", lambda: export_assets(config, logger, test_mode=True, dry_run=dry_run, update=True)),
         ]
     elif dry_run:
         steps = [
-            ("check", lambda: check(config, logger)),
+            ("check", lambda: check(config, logger, require_immich=False)),
             ("export", lambda: export_assets(config, logger, dry_run=True, update=True)),
             ("import-assets", lambda: import_assets(config, logger, dry_run=True)),
         ]

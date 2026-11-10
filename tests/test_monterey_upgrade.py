@@ -10,6 +10,7 @@ from apple_photos_to_immich.config import Config
 from apple_photos_to_immich.audit import audit_export
 from apple_photos_to_immich.metadata_check import iso_day
 from apple_photos_to_immich.gui import ACTIONS,make_config,read_config,save_private_config
+from apple_photos_to_immich.config import load_config
 from apple_photos_to_immich.matching import match_assets
 
 class HardeningTests(unittest.TestCase):
@@ -87,6 +88,20 @@ class HardeningTests(unittest.TestCase):
         actions={a[2] for a in ACTIONS}
         for op in ("check","export --test","import-assets","make-map","apply-albums","verify","all"):
             self.assertIn(op,actions)
+    def test_offline_configuration_and_local_check(self):
+        with tempfile.TemporaryDirectory() as root:
+            c=self.config(root)
+            Path(c.photos_library).mkdir()
+            c.immich_api_key=""
+            values={"server":c.immich_server,"api_key":"","library":c.photos_library,
+                    "export_dir":str(c.export_dir),"meta_dir":str(c.meta_dir)}
+            path=Path(root)/"config.toml"
+            save_private_config(path,make_config(values))
+            loaded=load_config(path)
+            self.assertEqual(loaded.immich_api_key,"")
+            with patch.object(commands.shutil,"which",side_effect=lambda name: "/fake/osxphotos" if name=="osxphotos" else None):
+                self.assertEqual(commands.check(loaded,MagicMock(),require_immich=False),0)
+                self.assertEqual(commands.check(loaded,MagicMock(),require_immich=True),1)
     def test_date_parser(self):
         self.assertEqual(iso_day("2020-01-03T09:10:00Z"),"2020-01-03")
 

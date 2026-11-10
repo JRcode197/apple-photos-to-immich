@@ -126,7 +126,7 @@ class Studio(tk.Tk):
         self.vars={k:tk.StringVar(value=v) for k,v in DEFAULTS.items()}
         self.action=tk.StringVar(value=ACTIONS[0][0])
         self.verbose=tk.BooleanVar(value=False)
-        self.status=tk.StringVar(value="Pronto. Configura la libreria e Immich.")
+        self.status=tk.StringVar(value="Pronto. Per il test locale non serve una chiave API Immich.")
         self.summary=tk.StringVar(value="Report non ancora generati")
         self.events=queue.Queue()
         self.process=None
@@ -154,7 +154,7 @@ class Studio(tk.Tk):
         ttk.Checkbutton(self.config_tab,text="Verifica TLS (consigliato)",variable=self.vars["verify_ssl"],onvalue="true",offvalue="false").grid(row=1,column=0,sticky="w",pady=4)
         ttk.Button(self.config_tab,text="Test connessione API",command=self.test_connection).grid(row=2,column=0,sticky="w",pady=4)
         self._section(self.config_tab,"Libreria e directory",["library","export_dir","meta_dir"],3)
-        ttk.Label(self.config_tab,text="Le credenziali restano sul Mac in config.toml (permessi 0600). Non pubblicare la configurazione su GitHub.").grid(row=4,column=0,sticky="w",pady=12)
+        ttk.Label(self.config_tab,text="Per il test locale lascia vuota la chiave API. Serve solo per importare su Immich.").grid(row=4,column=0,sticky="w",pady=12)
         self.config_tab.columnconfigure(0,weight=1)
         self._section(self.advanced_tab,"Strumenti, album e opzioni",list(GROUPS["photos"][1:])+GROUPS["runtime"],0)
         self.advanced_tab.columnconfigure(0,weight=1)
@@ -212,7 +212,6 @@ class Studio(tk.Tk):
         try:
             values={k:v.get() for k,v in self.vars.items()}
             if not values["server"].startswith(("http://","https://")):raise ValueError("URL server must begin with http:// or https://")
-            if not values["api_key"]:raise ValueError("Inserisci la chiave API Immich")
             if not values["library"]:raise ValueError("Seleziona la libreria Apple Foto")
             save_private_config(Path(self.config_path.get()),make_config(values))
             self.status.set("Configurazione salvata")
@@ -231,9 +230,15 @@ class Studio(tk.Tk):
             if not silent:messagebox.showerror("Caricamento",str(exc))
 
     def run_action(self):
-        if self.busy or not self.save_config(silent=True):return
+        if self.busy:return
         selected=next(a for a in ACTIONS if a[0]==self.action.get())
         title,_,cmd,confirm=selected
+        needs_api=(cmd.startswith(("import-assets", "wait-for-immich", "apply-albums", "verify", "all"))
+                   and cmd not in ("import-assets --dry-run", "all --dry-run", "all --test"))
+        if needs_api and not self.vars["api_key"].get().strip():
+            messagebox.showerror("Configurazione Immich", "Per questa operazione occorre un server Immich e una chiave API.\nPer il test locale scegli Requisiti oppure Export campione.")
+            return
+        if not self.save_config(silent=True):return
         if confirm and not messagebox.askyesno("Conferma",f"{title}\n\nProcedere? Apple Foto non sarà modificato."):return
         command=[sys.executable,"-m","apple_photos_to_immich","--config",self.config_path.get()]
         if self.verbose.get():command.append("--verbose")
@@ -298,6 +303,9 @@ class Studio(tk.Tk):
         self.summary.set("\n".join(result) if result else "Nessun report disponibile")
 
     def test_connection(self):
+        if not self.vars["api_key"].get().strip():
+            messagebox.showinfo("Connessione Immich", "La chiave API non è configurata. Puoi comunque eseguire il test locale delle foto.")
+            return
         def run():
             try:
                 url=self.vars["server"].get().rstrip("/")+"/api/server/ping"

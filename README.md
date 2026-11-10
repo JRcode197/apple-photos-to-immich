@@ -1,4 +1,4 @@
-> **JRcode197 Monterey edition (experimental)** — This fork adds a Tkinter GUI, safer resume/verification, export audit, and metadata checks. See [Italian setup guide](docs/MONTEREY.md). **Do not delete your Apple Photos library after importing.** The project is not yet validated on macOS Monterey or a 600 GB production library.
+> **JRcode197 Monterey edition (experimental)** — This fork adds a Tkinter GUI, safer resume/verification, export audit, and metadata checks. **Local sample export only requires Python and OSXPhotos (no Immich server or immich-go).** See [Italian setup guide](docs/MONTEREY.md). **Do not delete your Apple Photos library after importing.** The project is not yet validated on macOS Monterey or a 600 GB production library.
 
 ## Quick start: desktop GUI on macOS Monterey (Intel)
 

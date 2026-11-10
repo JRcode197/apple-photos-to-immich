@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "check":
-            return check(config, logger)
+            return check(config, logger, require_immich=bool(config.immich_api_key))
         if args.command == "export":
             return export_assets(
                 config,

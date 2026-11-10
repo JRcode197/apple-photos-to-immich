@@ -8,7 +8,7 @@
 - Python **3.11 o 3.12** di python.org, con Tkinter funzionante. Verifica: `python3.11 -m tkinter`.
 - [OSXPhotos](https://github.com/RhetTbull/osxphotos), installato nell'ambiente Python (vedi sotto).
 - [immich-go](https://github.com/simulot/immich-go/releases): scegli il rilascio per **darwin_amd64**; controlla provenienza, firma/checksum e compatibilità con il tuo server Immich.
-- Immich accessibile da Mac con una chiave API personale abilitata all'importazione e alla gestione degli album.
+- **Solo per l'importazione:** Immich accessibile dal Mac con una chiave API. Per il test di export locale puoi lasciarla vuota; non serve immich-go.
 - Spazio libero sul disco di esportazione: per 600 GB consigliati **almeno 750 GB–1 TB**, oltre allo spazio sul server Immich. Meglio SSD esterno.
 
 ## Installazione senza Homebrew
@@ -26,6 +26,8 @@ python -m pip install osxphotos
 python -m unittest discover -s tests -v
 python -m apple_photos_to_immich.gui
 ```
+
+Durante il **test locale senza Immich**, non occorre installare immich-go: basta Python e OSXPhotos. Il pulsante **Requisiti** ignora immich-go finché la chiave API è vuota. Per l'importazione completa, installa poi immich-go e imposta URL e chiave API nella GUI.
 
 Se `immich-go` non è nel PATH, usa il suo percorso assoluto nella scheda **Avanzate**. Per OSXPhotos, normalmente basta `osxphotos` installato nel venv.
 
@@ -45,7 +47,7 @@ Le azioni sono eseguite in sottoprocesso; **Interrompi** termina il processo att
 ## Sequenza consigliata
 
 1. Esegui **backup completo indipendente** della libreria; non lavorare mai sull'unica copia.
-2. Salva la configurazione della GUI e verifica URL, chiave API e percorsi.
+2. Salva la configurazione della GUI e verifica i percorsi. **Nel primo test puoi lasciare vuota la chiave API e ignorare il server Immich**. Usa una cartella export separata.
 3. Avvia **Requisiti**, poi **Export campione** (30 foto per impostazione predefinita). Questo comando non importa nulla su Immich.
 4. Esamina i file campione (HEIC, MOV, Live Photos, data e GPS). Per testare anche l'importazione, usa preferibilmente un'**istanza Immich di prova** e una directory di esportazione separata: il comando Import carica tutti i file presenti nella directory scelta.
 5. Esegui **Export completo / incrementale** sulla libreria principale, poi **Audit export**. L'opzione SHA256 legge l'intero archivio e impiega molto più tempo.

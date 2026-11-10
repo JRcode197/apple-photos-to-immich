@@ -98,7 +98,7 @@ def load_config(path: Path) -> Config:
 
     config = Config(
         immich_server=_require_str(immich, "server"),
-        immich_api_key=_require_str(immich, "api_key"),
+        immich_api_key=_optional_str(immich.get("api_key", "")),
         photos_library=str(_resolve_path(path, _require_str(photos, "library"))),
         export_dir=_resolve_path(path, _require_str(paths, "export_dir")),
         meta_dir=_resolve_path(path, _require_str(paths, "meta_dir")),
