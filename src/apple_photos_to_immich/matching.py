@@ -48,7 +48,7 @@ class MatchResult:
     missing_uuids: list[str]
 
 
-def match_assets(apple_assets: dict[str, dict[str, Any]], immich_assets: list[dict[str, Any]]) -> MatchResult:
+def match_assets(apple_assets: dict[str, dict[str, Any]], immich_assets: list[dict[str, Any]], *, allow_filename_date_fallback: bool = True) -> MatchResult:
     uuid_candidates: dict[str, list[str]] = {}
     fallback_candidates: dict[tuple[str, str], list[str]] = {}
 
@@ -86,6 +86,9 @@ def match_assets(apple_assets: dict[str, dict[str, Any]], immich_assets: list[di
     for apple_uuid, payload in apple_assets.items():
         normalized_uuid = apple_uuid.upper()
         if normalized_uuid in resolved:
+            continue
+        if not allow_filename_date_fallback or normalized_uuid in duplicate_counter:
+            missing.append(normalized_uuid)
             continue
 
         fallback_key = (

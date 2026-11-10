@@ -35,6 +35,7 @@ dev = [
 
 [project.scripts]
 apple-photos-to-immich = "apple_photos_to_immich.cli:main"
+apple-photos-to-immich-gui = "apple_photos_to_immich.gui:main"
 
 [project.urls]
 Homepage = "https://github.com/shaisegal/apple-photos-to-immich"

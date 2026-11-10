@@ -10,6 +10,7 @@ from typing import Any
 @dataclass(slots=True)
 class RunState:
     completed_steps: dict[str, dict[str, Any]] = field(default_factory=dict)
+    profile_fingerprint: str = ""
 
     def is_completed(self, step: str) -> bool:
         return step in self.completed_steps
@@ -23,7 +24,7 @@ class RunState:
         self.completed_steps.clear()
 
     def to_dict(self) -> dict[str, Any]:
-        return {"completedSteps": self.completed_steps}
+        return {"completedSteps": self.completed_steps, "profileFingerprint": self.profile_fingerprint}
 
 
 def load_state(path: Path) -> RunState:
@@ -33,7 +34,7 @@ def load_state(path: Path) -> RunState:
     completed = raw.get("completedSteps", {})
     if not isinstance(completed, dict):
         completed = {}
-    return RunState(completed_steps=completed)
+    return RunState(completed_steps=completed, profile_fingerprint=str(raw.get("profileFingerprint", "")))
 
 
 def save_state(path: Path, state: RunState) -> None:

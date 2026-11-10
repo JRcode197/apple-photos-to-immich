@@ -217,7 +217,7 @@ class AlbumNamingTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(client.added, [("album-new", ["asset-legacy-only"])])
-            self.assertEqual(client.deleted, ["album-legacy"])
+            self.assertEqual(client.deleted, [])  # non-destructive album migration
 
     def test_verify_accepts_legacy_and_new_album_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
